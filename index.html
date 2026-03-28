@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BGV Management Portal</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- PDF Generation Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+</head>
+<body class="bg-gray-100 font-sans">
+
+    <!-- UPDATE YOUR SCRIPT URL HERE -->
+    <script>
+        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwM_AqbSgdMxm6HF4LoGY0axkeYMHp_MOR_15y_KO0/dev"; 
+        let currentUser = null;
+    </script>
+
+    <!-- 1. LOGIN SCREEN -->
+    <div id="login-screen" class="flex h-screen justify-center items-center bg-slate-900">
+        <div class="bg-white p-8 rounded-lg shadow-lg w-96">
+            <h2 class="text-2xl font-bold text-center text-blue-600 mb-6">BGV Portal Login</h2>
+            <input type="email" id="login-email" placeholder="Email" class="w-full mb-4 p-2 border rounded">
+            <input type="password" id="login-pass" placeholder="Password" class="w-full mb-6 p-2 border rounded">
+            <button onclick="login()" class="w-full bg-blue-600 text-white p-2 rounded hover:bg-blue-700 font-bold">Login</button>
+            <p id="login-msg" class="text-red-500 text-center mt-2 hidden">Invalid Credentials</p>
+        </div>
+    </div>
+
+    <!-- 2. MAIN DASHBOARD (Hidden initially) -->
+    <div id="main-dashboard" class="hidden h-screen flex flex-col">
+        <!-- Navbar -->
+        <div class="bg-slate-900 text-white p-4 flex justify-between items-center shadow-md">
+            <h1 class="text-xl font-bold border-l-4 border-blue-500 pl-2">BGV Management Portal</h1>
+            <div class="flex items-center gap-4">
+                <span id="user-info" class="font-medium"></span>
+                <button onclick="logout()" class="bg-red-500 px-3 py-1 rounded text-sm hover:bg-red-600">Logout</button>
+            </div>
+        </div>
+
+        <!-- Dashboard Content -->
+        <div class="p-6 flex-1 overflow-y-auto w-full max-w-6xl mx-auto">
+            
+            <div id="loading" class="text-center text-blue-600 font-bold hidden mb-4">Processing Data... Please wait.</div>
+
+            <!-- ADMIN SECTION -->
+            <div id="admin-section" class="hidden">
+                <!-- Financial Cards -->
+                <div class="grid grid-cols-3 gap-6 mb-8">
+                    <div class="bg-white p-6 rounded shadow border-t-4 border-blue-500">
+                        <p class="text-gray-500">Total Revenue</p>
+                        <h3 class="text-3xl font-bold text-blue-600">₹<span id="stat-rev">0</span></h3>
+                    </div>
+                    <div class="bg-white p-6 rounded shadow border-t-4 border-red-500">
+                        <p class="text-gray-500">Employee Payouts</p>
+                        <h3 class="text-3xl font-bold text-red-600">₹<span id="stat-pay">0</span></h3>
+                    </div>
+                    <div class="bg-white p-6 rounded shadow border-t-4 border-green-500">
+                        <p class="text-gray-500">Net Profit</p>
+                        <h3 class="text-3xl font-bold text-green-600">₹<span id="stat-prof">0</span></h3>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-6 mb-8">
+                    <!-- Add Employee Form -->
+                    <div class="bg-white p-6 rounded shadow">
+                        <h3 class="font-bold mb-4 text-lg border-b pb-2">Add New Employee</h3>
+                        <input type="text" id="emp-name" placeholder="Name" class="w-full mb-2 p-2 border rounded">
+                        <input type="email" id="emp-email" placeholder="Email (Login credentials will be sent here)" class="w-full mb-2 p-2 border rounded text-sm">
+                        <input type="text" id="emp-pass" placeholder="Password" class="w-full mb-2 p-2 border rounded">
+                        <input type="text" id="emp-phone" placeholder="Phone" class="w-full mb-4 p-2 border rounded">
+                        <button onclick="addEmployee()" class="bg-slate-800 text-white px-4 py-2 rounded text-sm hover:bg-slate-700 w-full">Create & Email Credentials</button>
+                    </div>
+
+                    <!-- Employee List & ID Generator -->
+                    <div class="bg-white p-6 rounded shadow overflow-y-auto h-72">
+                        <h3 class="font-bold mb-4 text-lg border-b pb-2">Employees & ID Cards</h3>
+                        <div id="employee-list" class="space-y-2"></div>
+                    </div>
+                </div>
+
+                <!-- Admin Cases Table -->
+                <div class="bg-white p-6 rounded shadow">
+                    <h3 class="font-bold mb-4 text-lg border-b pb-2">All Verification Cases</h3>
+                    <table class="w-full text-left">
+                        <tr class="bg-gray-100">
+                            <th class="p-2">Case ID</th><th class="p-2">Client</th><th class="p-2">Status</th>
+                            <th class="p-2">Charge</th><th class="p-2">Profit</th><th class="p-2">Assigned To</th>
+                        </tr>
+                        <tbody id="admin-cases-list"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- EMPLOYEE SECTION -->
+            <div id="employee-section" class="hidden">
+                <div class="bg-white p-6 rounded shadow mb-6 flex justify-between items-center">
+                    <div>
+                        <h2 class="text-2xl font-bold text-gray-800">My Profile</h2>
+                        <p class="text-gray-600">ID: <span id="my-id" class="font-bold"></span> | Phone: <span id="my-phone"></span></p>
+                    </div>
+                    <!-- Trigger to download own ID card -->
+                    <button onclick="generateIDCard(currentUser.name, currentUser.id, currentUser.phone)" class="bg-blue-600 text-white px-4 py-2 rounded shadow hover:bg-blue-700">Download My ID Card</button>
+                </div>
+
+                <div class="bg-white p-6 rounded shadow">
+                    <h3 class="font-bold mb-4 text-lg border-b pb-2">My Assigned Cases</h3>
+                    <table class="w-full text-left">
+                        <tr class="bg-gray-100">
+                            <th class="p-2">Case ID</th><th class="p-2">Client</th><th class="p-2">My Payout</th>
+                            <th class="p-2">Status</th><th class="p-2">Remarks</th><th class="p-2">Action</th>
+                        </tr>
+                        <tbody id="emp-cases-list"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- HIDDEN ID CARD TEMPLATE FOR PDF GENERATION -->
+    <div id="id-card-template" class="hidden w-[350px] bg-white border-2 border-slate-900 rounded-xl p-4 text-center absolute top-[-9999px]">
+        <h2 class="text-xl font-bold text-slate-900 border-b-2 border-blue-500 pb-2 mb-4 uppercase">BGV Services India</h2>
+        <div class="w-24 h-24 bg-gray-200 rounded-full mx-auto mb-4 border-4 border-blue-500 flex justify-center items-center text-gray-400">Photo</div>
+        <h3 id="id-name" class="text-lg font-bold"></h3>
+        <p class="text-blue-600 font-bold mb-2">Field Verification Officer</p>
+        <div class="text-left bg-gray-100 p-3 rounded mt-2 text-sm">
+            <p><b>Emp ID:</b> <span id="id-empId"></span></p>
+            <p><b>Phone:</b> <span id="id-phone"></span></p>
+        </div>
+        <div class="mt-4 text-xs text-gray-500">Authorized Signatory</div>
+    </div>
+
+    <!-- JAVASCRIPT LOGIC -->
+    <script>
+        async function apiCall(data) {
+            document.getElementById('loading').classList.remove('hidden');
+            const response = await fetch(SCRIPT_URL, {
+                method: 'POST',
+                body: JSON.stringify(data)
+            });
+            const result = await response.json();
+            document.getElementById('loading').classList.add('hidden');
+            return result;
+        }
+
+        async function login() {
+            const email = document.getElementById('login-email').value;
+            const pass = document.getElementById('login-pass').value;
+            const res = await apiCall({action: 'login', email: email, password: pass});
+            
+            if(res.success) {
+                currentUser = res.user;
+                document.getElementById('login-screen').classList.add('hidden');
+                document.getElementById('main-dashboard').classList.remove('hidden');
+                document.getElementById('user-info').innerText = `${currentUser.name} (${currentUser.role.toUpperCase()})`;
+                
+                if(currentUser.role === 'admin') {
+                    document.getElementById('admin-section').classList.remove('hidden');
+                    loadAdminData();
+                } else {
+                    document.getElementById('employee-section').classList.remove('hidden');
+                    document.getElementById('my-id').innerText = currentUser.id;
+                    document.getElementById('my-phone').innerText = currentUser.phone;
+                    loadEmployeeData();
+                }
+            } else {
+                document.getElementById('login-msg').classList.remove('hidden');
+            }
+        }
+
+        function logout() {
+            location.reload();
+        }
+
+        // LOAD ADMIN DATA
+        async function loadAdminData() {
+            const data = await apiCall({action: 'getAdminData'});
+            
+            // Set Financials
+            document.getElementById('stat-rev').innerText = data.stats.revenue;
+            document.getElementById('stat-pay').innerText = data.stats.payout;
+            document.getElementById('stat-prof').innerText = data.stats.profit;
+
+            // Render Employees
+            const empList = document.getElementById('employee-list');
+            empList.innerHTML = '';
+            data.employees.forEach(emp => {
+                empList.innerHTML += `
+                    <div class="flex justify-between items-center p-2 bg-gray-50 border rounded">
+                        <div><p class="font-bold text-sm">${emp.name}</p><p class="text-xs text-gray-500">${emp.id}</p></div>
+                        <button onclick="generateIDCard('${emp.name}', '${emp.id}', '${emp.phone}')" class="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded hover:bg-blue-200">Get ID Card</button>
+                    </div>`;
+            });
+
+            // Render Cases
+            const caseList = document.getElementById('admin-cases-list');
+            caseList.innerHTML = '';
+            data.cases.forEach(c => {
+                let profit = c.charge - c.payout;
+                let statusColor = c.status === 'Completed' ? 'text-green-600' : 'text-yellow-600';
+                caseList.innerHTML += `
+                    <tr class="border-b">
+                        <td class="p-2 text-sm">${c.caseId}</td>
+                        <td class="p-2 text-sm">${c.client}</td>
+                        <td class="p-2 text-sm font-bold ${statusColor}">${c.status}</td>
+                        <td class="p-2 text-sm">₹${c.charge}</td>
+                        <td class="p-2 text-sm text-green-600 font-bold">+₹${profit}</td>
+                        <td class="p-2 text-sm">${c.assignedTo}</td>
+                    </tr>`;
+            });
+        }
+
+        // LOAD EMPLOYEE DATA
+        async function loadEmployeeData() {
+            const data = await apiCall({action: 'getEmployeeData', empId: currentUser.id});
+            const caseList = document.getElementById('emp-cases-list');
+            caseList.innerHTML = '';
+            
+            data.cases.forEach(c => {
+                let statusColor = c.status === 'Completed' ? 'text-green-600' : 'text-yellow-600';
+                caseList.innerHTML += `
+                    <tr class="border-b">
+                        <td class="p-2 text-sm">${c.caseId}</td>
+                        <td class="p-2 text-sm">${c.client}</td>
+                        <td class="p-2 text-sm font-bold text-blue-600">₹${c.payout}</td>
+                        <td class="p-2 text-sm font-bold ${statusColor}">${c.status}</td>
+                        <td class="p-2"><input type="text" id="rem-${c.rowIndex}" value="${c.remarks || ''}" class="border p-1 text-sm w-full"></td>
+                        <td class="p-2">
+                            <select id="stat-${c.rowIndex}" class="border p-1 text-sm">
+                                <option value="Pending" ${c.status==='Pending'?'selected':''}>Pending</option>
+                                <option value="In Progress" ${c.status==='In Progress'?'selected':''}>In Progress</option>
+                                <option value="Completed" ${c.status==='Completed'?'selected':''}>Completed</option>
+                            </select>
+                            <button onclick="updateCase(${c.rowIndex}, null)" class="bg-green-500 text-white text-xs px-2 py-1 rounded mt-1">Save</button>
+                        </td>
+                    </tr>`;
+            });
+        }
+
+        // ADD EMPLOYEE & TRIGGER EMAIL
+        async function addEmployee() {
+            const data = {
+                action: 'addEmployee',
+                name: document.getElementById('emp-name').value,
+                email: document.getElementById('emp-email').value,
+                password: document.getElementById('emp-pass').value,
+                phone: document.getElementById('emp-phone').value
+            };
+            if(!data.name || !data.email) return alert("Name & Email required!");
+            
+            await apiCall(data);
+            alert("Employee Created & Credentials Sent via Email!");
+            loadAdminData(); // Refresh list
+        }
+
+        // UPDATE CASE & TRIGGER EMAIL
+        async function updateCase(rowIndex, clientEmail) {
+            const status = document.getElementById(`stat-${rowIndex}`).value;
+            const remarks = document.getElementById(`rem-${rowIndex}`).value;
+            
+            await apiCall({
+                action: 'updateStatus', rowIndex: rowIndex, 
+                status: status, remarks: remarks, clientEmail: clientEmail
+            });
+            alert("Status Updated!");
+            loadEmployeeData();
+        }
+
+        // GENERATE PDF ID CARD USING HTML2PDF
+        function generateIDCard(name, empId, phone) {
+            document.getElementById('id-name').innerText = name;
+            document.getElementById('id-empId').innerText = empId;
+            document.getElementById('id-phone').innerText = phone;
+            
+            const element = document.getElementById('id-card-template');
+            element.classList.remove('hidden'); // Temporarily show for PDF render
+            
+            var opt = {
+                margin:       0.5,
+                filename:     `ID_${empId}.pdf`,
+                image:        { type: 'jpeg', quality: 0.98 },
+                html2canvas:  { scale: 2 },
+                jsPDF:        { unit: 'in', format: 'a5', orientation: 'portrait' }
+            };
+
+            html2pdf().set(opt).from(element).save().then(() => {
+                element.classList.add('hidden'); // Hide again
+            });
+        }
+    </script>
+</body>
+</html>
